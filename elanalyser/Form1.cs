@@ -74,6 +74,13 @@ namespace elanalyser
 
 
 
+        /* ファイルがD&Dされたときの動作 */
+
+        private void Form1_DropDrop(object sender, DragEventArgs e)
+        {
+
+        }
+
         /* 選択保存ボタンを押したときの動作 */
 
         private void SaveSelectedSFF_Click(object sender, EventArgs e)
