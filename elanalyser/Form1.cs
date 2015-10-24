@@ -1,5 +1,5 @@
 ﻿/*                                        */
-/*         EL Data Analyzer v1.00         */
+/*         EL Data Analyzer v1.01         */
 /*              (2015/10/05)              */
 /*                                        */
 /*  Coded by 13期の駆け出しプログラマー   */
@@ -29,9 +29,10 @@ namespace elanalyser
 
     public partial class Form1 : Form
     {
+        /* 状態変数 */
+        private bool ELS02Mode = false;     /* ELS-02モード */
 
-        /* リストの生成 */
-
+        /* リストの宣言 */
         List<byte[]> SFFList = new List<byte[]>();
 
 
@@ -41,12 +42,26 @@ namespace elanalyser
         }
 
 
-
         /* Form1のロード完了 */
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            /* 起動引数からファイルパスを取得 */
+            string[] FilePass = Environment.GetCommandLineArgs();
 
+            if (FilePass.Length > 1)
+            {
+                if (FileRead(FilePass[1]) == true)
+                {
+                    /* ユーザーリズムタブの表示 */
+                    UserRythm_Show();
+
+                    /* 操作ボタンの有効化 */
+                    SaveSelectedSFF.Enabled = true;
+                    SaveAllSFF.Enabled = true;
+                    RenameAndSaveSFF.Enabled = true;
+                }
+            }
         }
 
 
@@ -76,10 +91,37 @@ namespace elanalyser
 
         /* ファイルがD&Dされたときの動作 */
 
-        private void Form1_DropDrop(object sender, DragEventArgs e)
+        private void Form1_DragEnter(object sender, DragEventArgs e)
         {
-
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effect = DragDropEffects.All;
+            }
+            else
+            {
+                e.Effect = DragDropEffects.None;
+            }
         }
+
+        private void Form1_DragDrop(object sender, DragEventArgs e)
+        {
+            /* ファイルパスの取得 */
+            string[] FilePass = (string[])e.Data.GetData(DataFormats.FileDrop, false);
+
+            /* ファイルを読み込み */
+            if (FileRead(FilePass[0]) == true)
+            {
+                /* ユーザーリズムタブの表示 */
+                UserRythm_Show();
+
+                /* 操作ボタンの有効化 */
+                SaveSelectedSFF.Enabled = true;
+                SaveAllSFF.Enabled = true;
+                RenameAndSaveSFF.Enabled = true;
+            }
+        }
+
+
 
         /* 選択保存ボタンを押したときの動作 */
 
@@ -93,14 +135,10 @@ namespace elanalyser
                 {
                     if (SaveSFFFolderDialog.ShowDialog() == DialogResult.OK)
                     {
-                        /* 変数宣言 */
-                        int i = new int();
-                        int k = new int();
-
                         /* 選択されたSFF */
-                        for (i = 0; i < UserRythmList.SelectedIndices.Count; i++)
+                        for (byte i = 0; i < UserRythmList.SelectedIndices.Count; i++)
                         {
-                            k = UserRythmList.SelectedIndices[i];
+                            byte k = (byte)UserRythmList.SelectedIndices[i];
 
                             /* ファイルストリームを用いて保存 */
                             using (FileStream fs = new FileStream(SaveSFFFolderDialog.SelectedPath + @"/User" + (k+1).ToString() + ".sty", FileMode.Create, FileAccess.Write))
@@ -137,13 +175,10 @@ namespace elanalyser
             {
                 if (SaveSFFFolderDialog.ShowDialog() == DialogResult.OK)
                 {
-                    /* 変数宣言 */
-                    int i = new int();
-                    int k = new int();
-                    k = 0;
+                    byte k = 0;
 
                     /* すべてのSFF */
-                    for (i = 0; i < 48; i++)
+                    for (byte i = 0; i < 48; i++)
                     {
                         /* ファイルストリームを用いて保存 */ 
                         if (SFFList[i].Length > 388)
@@ -175,14 +210,13 @@ namespace elanalyser
 
         private void RenameAndSaveSFF_Click(object sender, EventArgs e)
         {
-            /* 変数宣言 */
-            int i = new int();
-
             /* 選択されているすべてのユーザーについて処理を行う */
-            for (i = 0; i < UserRythmList.SelectedIndices.Count; i++)
+            for (byte i = 0; i < UserRythmList.SelectedIndices.Count; i++)
             {
+                byte k = (byte)UserRythmList.SelectedIndices[i];
+
                 /* デフォルトの保存名を指定 */
-                SaveSFFDialog.FileName = "User" + (UserRythmList.SelectedIndices[i]+1).ToString() + ".sty";
+                SaveSFFDialog.FileName = "User" + (k + 1).ToString() + ".sty";
 
                 try
                 {
@@ -191,7 +225,7 @@ namespace elanalyser
                     {
                         using (FileStream fs = new FileStream(SaveSFFDialog.FileName, FileMode.Create, FileAccess.Write))
                         {
-                            fs.Write(SFFList[i], 0, SFFList[i].Length);
+                            fs.Write(SFFList[k], 0, SFFList[k].Length);
                         }
                     }
                 }
@@ -228,65 +262,21 @@ namespace elanalyser
                     MessageBox.Show("ファイルが開けません。", "エラー", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
-
             }
 
+
             /* ファイルヘッダを確認 */
+
+            /* ELS-01シリーズのデータの時 */
             if (REGIST[0] == 240 && REGIST[1] == 67 && REGIST[2] == 112 && REGIST[3] == 120 && REGIST[4] == 0 && REGIST[5] == 60 && REGIST[6] == 0 && REGIST[7] == 127)
             {
+                ELS02Mode = false;
+            }
 
-                /* ローカル変数定義 */
-                int[] SFF_head = new int[49];
-                byte[] SFF_temp = new byte[1];
-                byte head = 0;
-
-                /* リストのクリア */
-                SFFList.Clear();
-
-
-                /* ユーザーリズムの読み込み */
-
-                /* ヘッダの検出 */
-                for (int n = 0; n < REGIST.Length - 7; n++)
-                {
-                    if (REGIST[n] == 77 && REGIST[n + 1] == 84 && REGIST[n + 2] == 104 && REGIST[n + 3] == 100 && REGIST[n + 4] == 0 && REGIST[n + 5] == 0 && REGIST[n + 6] == 0 && REGIST[n + 7] == 6)
-                    {
-                        SFF_head[head] = n;
-                        head++;
-                    }
-                }
-
-                /* ヘッダをもとに分割 */
-                if (head == 48)
-                {
-                    SFF_head[48] = REGIST.Length - 2;
-
-                    for (byte k = 0; k < 48; k++)
-                    {
-                        Array.Resize(ref SFF_temp, SFF_head[k + 1] - SFF_head[k]);
-
-                        for (int i = 0; i < SFF_head[k + 1] - SFF_head[k]; i++)
-                        {
-                            SFF_temp[i] = REGIST[SFF_head[k] + i];
-                        }
-
-                        SFFList.Add(SFF_temp);
-                    }
-
-                }
-
-                /* ヘッダが48個検出されなかったときは異常終了 */
-                else
-                {
-                    MessageBox.Show("データの読み込みに失敗しました。", "エラー", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return false;
-                }
-
-                /* ファイルパスを表示 */
-                textBox1.Text = FilePass;
-
-                return true;
-
+            /* ELS-02シリーズのデータの時 */
+            else if (REGIST[0] == 240 && REGIST[1] == 67 && REGIST[2] == 112 && REGIST[3] == 120 && REGIST[4] == 1 && REGIST[5] == 60 && REGIST[6] == 0 && REGIST[7] == 127)
+            {
+                ELS02Mode = true;
             }
 
             /* ファイルヘッダ検出ができなかったときは異常終了 */
@@ -295,6 +285,68 @@ namespace elanalyser
                 MessageBox.Show("ELデータファイルではありません。", "エラー", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
+
+            /* リストのクリア */
+            SFFList.Clear();
+
+
+            /* ユーザーリズムの読み込み */
+
+            /* ローカル変数定義 */
+            int[] SFF_head = new int[49];
+            byte[] SFF_temp = new byte[1];
+            byte head = 0;
+
+            /* ヘッダの検出 */
+            for (int n = 0; n < REGIST.Length - 7; n++)
+            {
+                if (REGIST[n] == 77 && REGIST[n + 1] == 84 && REGIST[n + 2] == 104 && REGIST[n + 3] == 100 && REGIST[n + 4] == 0 && REGIST[n + 5] == 0 && REGIST[n + 6] == 0 && REGIST[n + 7] == 6)
+                {
+                    SFF_head[head] = n;
+                    head++;
+                }
+            }
+
+            /* ヘッダの個数を確認 */
+            if (head == 48)
+            {
+                /* 終端の設定 */
+                if (ELS02Mode == true)
+                {
+                    SFF_head[48] = REGIST.Length - 161570;
+                }
+                else
+                {
+                    SFF_head[48] = REGIST.Length - 2;
+                }
+
+                /* ヘッダをもとに分割 */
+                for (byte k = 0; k < 48; k++)
+                {
+                    Array.Resize(ref SFF_temp, SFF_head[k + 1] - SFF_head[k]);
+
+                    for (int i = 0; i < SFF_head[k + 1] - SFF_head[k]; i++)
+                    {
+                        SFF_temp[i] = REGIST[SFF_head[k] + i];
+                    }
+
+                    SFFList.Add(SFF_temp);
+                }
+
+            }
+
+            /* ヘッダが48個検出されなかったときは異常終了 */
+            else
+            {
+                MessageBox.Show("データの読み込みに失敗しました。", "エラー", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+
+            /* ファイルパスを表示 */
+            textBox1.Text = FilePass;
+
+            return true;
+
         }
 
 
